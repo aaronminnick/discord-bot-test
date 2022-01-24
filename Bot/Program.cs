@@ -1,4 +1,4 @@
-using Bot.Modules;
+// using Bot.Modules;
 using Bot.Services;
 using Discord;
 using Discord.Commands;
@@ -46,6 +46,7 @@ namespace Bot
 
     public async Task MainAsync()
     {
+      await InitCommands();
       await _client.LoginAsync(TokenType.Bot, EnvironmentVariables.Token);
       await _client.StartAsync();
 
@@ -57,6 +58,39 @@ namespace Bot
 
       //block task - this keeps bot connected indefinitely until program closes
       await Task.Delay(-1);
+    }
+
+     private async Task InitCommands()
+    {
+        await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+
+        _client.MessageReceived += HandleCommandAsync;
+    }
+
+    private async Task HandleCommandAsync(SocketMessage messageParam)
+    {
+        // Don't process the command if it was a system message
+        var message = messageParam as SocketUserMessage;
+        if (message == null) return;
+
+        // Create a number to track where the prefix ends and the command begins
+        int argPos = 0;
+
+        // Determine if the message is a command based on the prefix and make sure no bots trigger commands
+        if (!(message.HasCharPrefix('!', ref argPos) || 
+            message.HasMentionPrefix(_client.CurrentUser, ref argPos)) ||
+            message.Author.IsBot)
+            return;
+
+        // Create a WebSocket-based command context based on the message
+        var context = new SocketCommandContext(_client, message);
+
+        // Execute the command with the command context we just
+        // created, along with the service provider for precondition checks.
+        await _commands.ExecuteAsync(
+            context: context, 
+            argPos: argPos,
+            _services);
     }
   }
 }
